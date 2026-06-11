@@ -1,6 +1,6 @@
 # ============================================================
 # Лабораторная работа 10: MLP для прогнозирования цен акций
-# С исправлением проблем загрузки данных
+# Исправленная версия для новых версий pandas
 # ============================================================
 
 import os
@@ -27,6 +27,7 @@ from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.keras.callbacks import EarlyStopping
 import pickle
 import time
+import sys
 
 print("=" * 60)
 print("Этап 1: Загрузка данных")
@@ -40,12 +41,12 @@ df = None
 
 
 # Способ 1: Попытка загрузки через yfinance с повторными попытками
-def load_with_retries(ticker, start, end, max_retries=3):
+def load_with_retries(ticker, start, end, max_retries=2):  # уменьшил до 2 попыток
     import yfinance as yf
     for attempt in range(max_retries):
         try:
             print(f"Попытка {attempt + 1} из {max_retries}...")
-            df = yf.download(ticker, start=start, end=end, progress=False, timeout=30)
+            df = yf.download(ticker, start=start, end=end, progress=False, timeout=10)
             if len(df) > 0:
                 print(f"✓ Данные успешно загружены через yfinance")
                 return df
@@ -54,8 +55,8 @@ def load_with_retries(ticker, start, end, max_retries=3):
         except Exception as e:
             print(f"  Ошибка: {str(e)[:100]}")
             if attempt < max_retries - 1:
-                print(f"  Повторная попытка через 5 секунд...")
-                time.sleep(5)
+                print(f"  Повторная попытка через 3 секунд...")
+                time.sleep(3)
     return None
 
 
@@ -74,7 +75,6 @@ if df is None or len(df) == 0:
     print("\nНе удалось загрузить данные через yfinance.")
     print("Пытаемся загрузить из локального CSV файла...")
 
-    # Создаем примерные данные для TSLA если файла нет
     csv_filename = "tsla_data.csv"
 
     if os.path.exists(csv_filename):
@@ -124,18 +124,20 @@ if df is None or len(df) == 0:
     print("1. Проверьте интернет-соединение")
     print("2. Установите данные вручную из CSV файла")
     print("3. Используйте VPN если Yahoo Finance заблокирован")
-    exit(1)
+    sys.exit(1)
 
 # Оставляем только нужные колонки
 df = df[['Close', 'Volume']]
 
-# Заполнение пропусков
-df.fillna(method='ffill', inplace=True)
+# Заполнение пропусков (исправлено для новых версий pandas)
+df = df.ffill()  # forward fill
+df = df.bfill()  # backward fill для оставшихся пропусков
 df.dropna(inplace=True)
 
 print(f"\nЗагружено строк: {len(df)}")
-print(f"Период: с {df.index[0].date()} по {df.index[-1].date()}")
-print(f"Диапазон цен: ${df['Close'].min():.2f} - ${df['Close'].max():.2f}")
+if len(df) > 0:
+    print(f"Период: с {df.index[0].date()} по {df.index[-1].date()}")
+    print(f"Диапазон цен: ${df['Close'].min():.2f} - ${df['Close'].max():.2f}")
 
 print("\nПервые 5 строк:")
 print(df.head())
@@ -184,7 +186,8 @@ print(f"Размер y: {y.shape}")
 print(f"\nСписок признаков ({len(feature_cols)}):")
 for i, col in enumerate(feature_cols[:10]):  # показываем первые 10
     print(f"  {i + 1}. {col}")
-print(f"  ... и еще {len(feature_cols) - 10} признаков")
+if len(feature_cols) > 10:
+    print(f"  ... и еще {len(feature_cols) - 10} признаков")
 
 # --------------------
 # Этап 3. Подготовка данных и масштабирование
@@ -192,6 +195,11 @@ print(f"  ... и еще {len(feature_cols) - 10} признаков")
 print("\n" + "=" * 60)
 print("Этап 3: Подготовка данных и масштабирование")
 print("=" * 60)
+
+# Проверка наличия данных для разделения
+if len(X) == 0:
+    print("❌ Нет данных для обучения!")
+    sys.exit(1)
 
 # Разделение на train/test (последовательно)
 split_idx = int(len(X) * 0.8)
@@ -328,7 +336,8 @@ print("ИТОГОВЫЕ МЕТРИКИ (в долларах США)")
 print("=" * 60)
 print(f"MAE (средняя абсолютная ошибка):  ${mae_usd:.2f}")
 print(f"RMSE (среднеквадратичная ошибка): ${rmse_usd:.2f}")
-print(f"MAPE (в процентах):              {(mae_usd / y_test_actual.mean() * 100):.2f}%")
+if y_test_actual.mean() > 0:
+    print(f"MAPE (в процентах):              {(mae_usd / y_test_actual.mean() * 100):.2f}%")
 
 # Дополнительная визуализация: график ошибок
 errors = y_test_actual.flatten() - y_pred.flatten()
