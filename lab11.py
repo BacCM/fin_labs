@@ -4,12 +4,16 @@
 
 import pandas as pd
 import numpy as np
+import matplotlib
+
+matplotlib.use('Agg')  # Используем бэкенд без GUI
 import matplotlib.pyplot as plt
 import seaborn as sns
 import joblib
 import shap
 import urllib.request
 import json
+import warnings
 
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.pipeline import Pipeline
@@ -17,13 +21,10 @@ from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_auc_score, confusion_matrix, \
-    classification_report
+from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_auc_score
 
 from lightgbm import LGBMClassifier
 from catboost import CatBoostClassifier
-
-import warnings
 
 warnings.filterwarnings('ignore')
 
@@ -43,79 +44,85 @@ print("=" * 60)
 # Загрузка датасета
 print("\nЗагрузка данных...")
 
-df = None
+# Пытаемся загрузить данные
+url = "https://raw.githubusercontent.com/ageron/handson-ml2/master/datasets/german/german.data"
+column_names = [
+    'checking_status', 'duration', 'credit_history', 'purpose', 'amount',
+    'savings_status', 'employment', 'installment_commitment', 'personal_status',
+    'other_parties', 'residence_since', 'property_magnitude', 'age',
+    'other_payment_plans', 'housing', 'existing_credits', 'job',
+    'num_dependents', 'own_telephone', 'foreign_worker', 'class'
+]
 
-# Способ 1: Пробуем загрузить через fetch_openml
 try:
-    from sklearn.datasets import fetch_openml
+    response = urllib.request.urlopen(url)
+    data = response.read().decode('utf-8')
+    lines = data.strip().split('\n')
+    data_rows = [line.split() for line in lines]
+    df = pd.DataFrame(data_rows, columns=column_names)
 
-    german_credit = fetch_openml(name='credit-g', version=1, as_frame=True)
-    df = german_credit.frame
-    print("✓ Данные загружены через fetch_openml")
+    # Преобразование целевой переменной
+    df['class'] = df['class'].map({'1': 0, '2': 1})
 
-    # Проверяем целевую переменную
-    print(f"Уникальные значения target: {df['class'].unique()}")
+    # Преобразование числовых столбцов
+    numeric_cols = ['duration', 'amount', 'installment_commitment', 'residence_since',
+                    'age', 'existing_credits', 'num_dependents']
+    for col in numeric_cols:
+        df[col] = pd.to_numeric(df[col])
 
-    # Преобразуем target в числа
-    if df['class'].dtype == 'object' or df['class'].dtype.name == 'category':
-        if 'good' in df['class'].values or 'bad' in df['class'].values:
-            df['class'] = df['class'].map({'good': 0, 'bad': 1})
-        else:
-            df['class'] = pd.to_numeric(df['class'], errors='coerce')
+    print("✓ Данные успешно загружены из GitHub")
+
+    # Определяем категориальные признаки (все остальные)
+    categorical_cols = [col for col in df.columns if col not in numeric_cols + ['class']]
 
 except Exception as e:
-    print(f"Загрузка через fetch_openml не удалась: {e}")
+    print(f"Ошибка загрузки: {e}")
+    print("Создание демонстрационного датасета...")
 
-# Способ 2: Загрузка из GitHub
-if df is None:
-    print("Загрузка из GitHub...")
-    try:
-        url = "https://raw.githubusercontent.com/ageron/handson-ml2/master/datasets/german/german.data"
-        column_names = [
-            'checking_status', 'duration', 'credit_history', 'purpose', 'amount',
-            'savings_status', 'employment', 'installment_commitment', 'personal_status',
-            'other_parties', 'residence_since', 'property_magnitude', 'age',
-            'other_payment_plans', 'housing', 'existing_credits', 'job',
-            'num_dependents', 'own_telephone', 'foreign_worker', 'class'
-        ]
+    # Создаем демо-датасет
+    np.random.seed(42)
+    n_samples = 1000
 
-        response = urllib.request.urlopen(url)
-        data = response.read().decode('utf-8')
-        lines = data.strip().split('\n')
-        data_rows = [line.split() for line in lines]
-        df = pd.DataFrame(data_rows, columns=column_names)
+    numeric_cols = ['duration', 'amount', 'age', 'installment_commitment',
+                    'residence_since', 'existing_credits', 'num_dependents']
 
-        # Преобразование целевой переменной: '1' -> 0 (good), '2' -> 1 (bad)
-        df['class'] = df['class'].map({'1': 0, '2': 1})
+    categorical_cols = ['checking_status', 'credit_history', 'purpose', 'savings_status',
+                        'employment', 'personal_status', 'other_parties', 'property_magnitude',
+                        'other_payment_plans', 'housing', 'job', 'own_telephone', 'foreign_worker']
 
-        # Преобразование числовых столбцов
-        numeric_cols = ['duration', 'amount', 'installment_commitment', 'residence_since',
-                        'age', 'existing_credits', 'num_dependents']
-        for col in numeric_cols:
-            df[col] = pd.to_numeric(df[col])
+    data_dict = {
+        'duration': np.random.randint(4, 72, n_samples),
+        'amount': np.random.randint(250, 20000, n_samples),
+        'age': np.random.randint(19, 75, n_samples),
+        'installment_commitment': np.random.randint(1, 4, n_samples),
+        'residence_since': np.random.randint(1, 5, n_samples),
+        'existing_credits': np.random.randint(1, 4, n_samples),
+        'num_dependents': np.random.randint(1, 3, n_samples),
+        'checking_status': np.random.choice(['A11', 'A12', 'A13', 'A14'], n_samples),
+        'credit_history': np.random.choice(['A30', 'A31', 'A32', 'A33', 'A34'], n_samples),
+        'purpose': np.random.choice(['A40', 'A41', 'A42', 'A43', 'A44', 'A45', 'A46', 'A47', 'A48', 'A49', 'A410'],
+                                    n_samples),
+        'savings_status': np.random.choice(['A61', 'A62', 'A63', 'A64', 'A65'], n_samples),
+        'employment': np.random.choice(['A71', 'A72', 'A73', 'A74', 'A75'], n_samples),
+        'personal_status': np.random.choice(['A91', 'A92', 'A93', 'A94', 'A95'], n_samples),
+        'other_parties': np.random.choice(['A101', 'A102', 'A103'], n_samples),
+        'property_magnitude': np.random.choice(['A121', 'A122', 'A123', 'A124'], n_samples),
+        'other_payment_plans': np.random.choice(['A141', 'A142', 'A143'], n_samples),
+        'housing': np.random.choice(['A151', 'A152', 'A153'], n_samples),
+        'job': np.random.choice(['A171', 'A172', 'A173', 'A174'], n_samples),
+        'own_telephone': np.random.choice(['A191', 'A192'], n_samples),
+        'foreign_worker': np.random.choice(['A201', 'A202'], n_samples)
+    }
 
-        print("✓ Данные загружены из GitHub")
+    df = pd.DataFrame(data_dict)
+    # Создаем целевую переменную с дисбалансом
+    df['class'] = np.where(
+        (df['duration'] > 36) | (df['amount'] > 10000) | (df['age'] < 25),
+        np.random.choice([0, 1], n_samples, p=[0.4, 0.6]),
+        np.random.choice([0, 1], n_samples, p=[0.8, 0.2])
+    )
 
-    except Exception as e2:
-        print(f"Ошибка загрузки из GitHub: {e2}")
-
-        # Способ 3: Создаем синтетические данные
-        print("Создание синтетического датасета...")
-        from sklearn.datasets import make_classification
-
-        X_synthetic, y_synthetic = make_classification(
-            n_samples=1000, n_features=20, n_informative=15, n_redundant=5,
-            n_classes=2, weights=[0.7, 0.3], random_state=42
-        )
-
-        feature_names_synthetic = [f'feature_{i}' for i in range(20)]
-        df = pd.DataFrame(X_synthetic, columns=feature_names_synthetic)
-        df['class'] = y_synthetic
-        print("✓ Создан синтетический датасет")
-
-# Проверка результата
-if df is None:
-    raise Exception("Не удалось загрузить данные")
+    print("✓ Создан демонстрационный датасет")
 
 print(f"\nРазмер датасета: {df.shape}")
 print(f"Строк: {df.shape[0]}, Столбцов: {df.shape[1]}")
@@ -123,61 +130,25 @@ print(f"Строк: {df.shape[0]}, Столбцов: {df.shape[1]}")
 print("\nПервые 5 строк:")
 print(df.head())
 
-print("\nТипы данных:")
-print(df.dtypes)
+print(f"\nЧисловые признаки ({len(numeric_cols)}): {numeric_cols}")
+print(f"Категориальные признаки ({len(categorical_cols)}): {categorical_cols[:5]}...")
 
-print("\nОписательная статистика для числовых признаков:")
-print(df.describe())
+# Визуализация (сохраняем в файлы)
+print("\nСохранение графиков...")
 
-# Проверка пропусков
-print("\nПропуски:")
-print(df.isnull().sum())
-
-# Определение типов признаков
-target = 'class'
-
-# Убеждаемся, что target - числовой
-if df[target].dtype == 'object' or df[target].dtype.name == 'category':
-    print(f"\nПреобразование target из {df[target].dtype} в int")
-    if 'good' in df[target].values:
-        df[target] = df[target].map({'good': 0, 'bad': 1})
-    else:
-        df[target] = pd.to_numeric(df[target], errors='coerce')
-
-# Удаляем строки с NaN в target
-df = df.dropna(subset=[target])
-df[target] = df[target].astype(int)
-
-print(f"\nЦелевая переменная после преобразования:")
-print(f"Уникальные значения: {df[target].unique()}")
-print(f"Тип: {df[target].dtype}")
-
-# Определение числовых и категориальных признаков
-numerical_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-if target in numerical_cols:
-    numerical_cols.remove(target)
-
-categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
-
-print(
-    f"\nЧисловые признаки ({len(numerical_cols)}): {numerical_cols[:5] if len(numerical_cols) > 5 else numerical_cols}")
-print(
-    f"Категориальные признаки ({len(categorical_cols)}): {categorical_cols[:5] if len(categorical_cols) > 5 else categorical_cols}")
-
-# Визуализация целевой переменной
+# Распределение целевой переменной
 plt.figure(figsize=(8, 5))
-class_counts = df[target].value_counts()
+class_counts = df['class'].value_counts()
 class_labels = ['Хороший (0)', 'Плохой (1)']
 colors = ['#2ecc71', '#e74c3c']
 
-bars = plt.bar(class_labels[:len(class_counts)], class_counts.values, color=colors[:len(class_counts)],
-               edgecolor='black', linewidth=1.5)
+bars = plt.bar(class_labels[:len(class_counts)], class_counts.values,
+               color=colors[:len(class_counts)], edgecolor='black', linewidth=1.5)
 plt.title('Распределение целевой переменной', fontsize=14, fontweight='bold')
 plt.xlabel('Класс', fontsize=12)
 plt.ylabel('Количество клиентов', fontsize=12)
 plt.grid(axis='y', alpha=0.3)
 
-# Добавление значений
 for bar, count in zip(bars, class_counts.values):
     percentage = count / len(df) * 100
     plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 5,
@@ -185,25 +156,29 @@ for bar, count in zip(bars, class_counts.values):
              ha='center', va='bottom', fontweight='bold')
 
 plt.tight_layout()
-plt.show()
+plt.savefig('target_distribution.png', dpi=100, bbox_inches='tight')
+plt.close()
+print("  ✓ target_distribution.png")
 
-# Вывод баланса классов
+# Баланс классов
 print(f"\nБаланс классов:")
 for i, (class_value, count) in enumerate(class_counts.items()):
     percentage = count / len(df) * 100
     class_name = "Хорошие (0)" if i == 0 else "Плохие (1)"
-    print(f"{class_name}: {percentage:.2f}% ({count} клиентов)")
+    print(f"  {class_name}: {percentage:.2f}% ({count} клиентов)")
 
 # Корреляционная матрица
-if len(numerical_cols) > 1:
+if len(numeric_cols) > 1:
     plt.figure(figsize=(12, 8))
-    corr_matrix = df[numerical_cols].corr()
+    corr_matrix = df[numeric_cols].corr()
     mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
     sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt='.2f',
                 linewidths=0.5, square=True, mask=mask, cbar_kws={"shrink": 0.8})
     plt.title('Корреляционная матрица числовых признаков', fontsize=14, fontweight='bold')
     plt.tight_layout()
-    plt.show()
+    plt.savefig('correlation_matrix.png', dpi=100, bbox_inches='tight')
+    plt.close()
+    print("  ✓ correlation_matrix.png")
 
 # =====================================================
 # ЭТАП 2. ПОСТРОЕНИЕ МОДЕЛЕЙ
@@ -214,15 +189,12 @@ print("ЭТАП 2: ПОСТРОЕНИЕ И СРАВНЕНИЕ МОДЕЛЕЙ")
 print("=" * 60)
 
 # Подготовка данных
-X = df.drop(columns=[target])
-y = df[target].copy()
+X = df.drop(columns=['class'])
+y = df['class'].astype(int)
 
-# Убеждаемся, что y - числовой
-y = y.astype(int)
-
-print(f"\nТип X: {type(X)}")
-print(f"Тип y: {y.dtype}")
+print(f"\nТип y: {y.dtype}")
 print(f"Уникальные значения y: {y.unique()}")
+print(f"Распределение y: {y.value_counts().to_dict()}")
 
 # Разделение на обучающую и тестовую выборки
 X_train, X_test, y_train, y_test = train_test_split(
@@ -235,17 +207,12 @@ print(f"Распределение в обучающей: {y_train.value_counts(
 print(f"Распределение в тестовой: {y_test.value_counts().to_dict()}")
 
 # Препроцессинг
-if len(categorical_cols) > 0:
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ('num', StandardScaler(), numerical_cols),
-            ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), categorical_cols)
-        ]
-    )
-else:
-    preprocessor = ColumnTransformer(
-        transformers=[('num', StandardScaler(), numerical_cols)]
-    )
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', StandardScaler(), numeric_cols),
+        ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), categorical_cols)
+    ]
+)
 
 # Модели для обучения
 models = {
@@ -303,11 +270,12 @@ for name, config in models.items():
             verbose=0
         )
 
+        print("  Поиск гиперпараметров...")
         grid_search.fit(X_train, y_train)
 
         best_model = grid_search.best_estimator_
-        print(f"Лучшие параметры: {grid_search.best_params_}")
-        print(f"CV AUC-ROC: {grid_search.best_score_:.4f}")
+        print(f"  Лучшие параметры: {grid_search.best_params_}")
+        print(f"  CV AUC-ROC: {grid_search.best_score_:.4f}")
 
         # Предсказания
         y_pred = best_model.predict(X_test)
@@ -328,19 +296,22 @@ for name, config in models.items():
             'Model Object': best_model
         })
 
-        print(f"\nРезультаты на тесте:")
-        print(f"  Accuracy:  {acc:.4f}")
-        print(f"  Precision: {prec:.4f}")
-        print(f"  Recall:    {rec:.4f}")
-        print(f"  AUC-ROC:   {roc_auc:.4f}")
+        print(f"\n  Результаты на тестовой выборке:")
+        print(f"    Accuracy:  {acc:.4f}")
+        print(f"    Precision: {prec:.4f}")
+        print(f"    Recall:    {rec:.4f}")
+        print(f"    AUC-ROC:   {roc_auc:.4f}")
 
     except Exception as e:
-        print(f"Ошибка при обучении {name}: {e}")
+        print(f"  ✗ Ошибка при обучении {name}: {e}")
+        import traceback
+
+        traceback.print_exc()
         continue
 
 # Проверка результатов
 if len(results) == 0:
-    print("\nНи одна модель не была успешно обучена!")
+    print("\n❌ Ни одна модель не была успешно обучена!")
     exit(1)
 
 # Сравнительная таблица
@@ -351,13 +322,17 @@ print("=" * 70)
 print(results_df.to_string(index=False))
 print("=" * 70)
 
-# Визуализация
+# Сохраняем таблицу
+results_df.to_csv('model_comparison.csv', index=False)
+print("\n✓ Таблица сохранена: model_comparison.csv")
+
+# Визуализация сравнения
 fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
 # AUC-ROC
 colors_bar = ['#3498db', '#2ecc71', '#e74c3c', '#f39c12']
-bars = axes[0].bar(results_df['Model'], results_df['AUC-ROC'], color=colors_bar[:len(results_df)],
-                   edgecolor='black', linewidth=1.5)
+bars = axes[0].bar(results_df['Model'], results_df['AUC-ROC'],
+                   color=colors_bar[:len(results_df)], edgecolor='black', linewidth=1.5)
 axes[0].set_ylim(0, 1)
 axes[0].set_title('Сравнение моделей по AUC-ROC', fontsize=14, fontweight='bold')
 axes[0].set_ylabel('AUC-ROC', fontsize=12)
@@ -377,10 +352,12 @@ axes[1].legend(loc='lower right')
 axes[1].grid(axis='y', alpha=0.3)
 
 plt.tight_layout()
-plt.show()
+plt.savefig('model_comparison.png', dpi=100, bbox_inches='tight')
+plt.close()
+print("✓ График сохранен: model_comparison.png")
 
 # =====================================================
-# ЭТАП 3. SHAP АНАЛИЗ (только для успешно обученных моделей)
+# ЭТАП 3. SHAP АНАЛИЗ
 # =====================================================
 
 print("\n" + "=" * 60)
@@ -395,25 +372,23 @@ best_model_obj = results[best_idx]['Model Object']
 print(f"\nЛучшая модель: {best_model_name}")
 print(f"AUC-ROC: {results_df.loc[best_idx, 'AUC-ROC']:.4f}")
 
-# SHAP анализ
+# SHAP анализ для tree-based моделей
 if best_model_name in ['RandomForest', 'LGBM', 'CatBoost']:
     print("\nВыполнение SHAP анализа...")
 
     try:
         # Получение названий признаков
-        if len(categorical_cols) > 0:
-            cat_encoder = best_model_obj.named_steps['preprocessor'].named_transformers_['cat']
-            cat_feature_names = cat_encoder.get_feature_names_out(categorical_cols).tolist()
-        else:
-            cat_feature_names = []
+        cat_encoder = best_model_obj.named_steps['preprocessor'].named_transformers_['cat']
+        cat_feature_names = cat_encoder.get_feature_names_out(categorical_cols).tolist()
 
-        feature_names_all = numerical_cols + cat_feature_names
+        feature_names_all = numeric_cols + cat_feature_names
 
         # Подготовка данных
         X_test_processed = best_model_obj.named_steps['preprocessor'].transform(X_test)
         X_test_df = pd.DataFrame(X_test_processed, columns=feature_names_all)
 
         # Расчет SHAP
+        print("  Расчет SHAP значений (может занять некоторое время)...")
         explainer = shap.TreeExplainer(best_model_obj.named_steps['classifier'])
         shap_values = explainer.shap_values(X_test_df)
 
@@ -427,7 +402,9 @@ if best_model_name in ['RandomForest', 'LGBM', 'CatBoost']:
         shap.summary_plot(shap_values_class1, X_test_df, plot_type="bar", show=False)
         plt.title(f'Важность признаков по SHAP - {best_model_name}', fontsize=14, fontweight='bold')
         plt.tight_layout()
-        plt.show()
+        plt.savefig('shap_importance.png', dpi=100, bbox_inches='tight')
+        plt.close()
+        print("  ✓ shap_importance.png")
 
         # Топ-5 признаков
         shap_importance = pd.DataFrame({
@@ -435,13 +412,19 @@ if best_model_name in ['RandomForest', 'LGBM', 'CatBoost']:
             'importance': np.abs(shap_values_class1).mean(axis=0)
         }).sort_values('importance', ascending=False)
 
-        print("\nТОП-5 наиболее важных признаков:")
-        print("-" * 50)
+        print("\n  ТОП-5 наиболее важных признаков:")
+        print("  " + "-" * 50)
         for i, (_, row) in enumerate(shap_importance.head(5).iterrows(), 1):
-            print(f"{i}. {row['feature']}: {row['importance']:.4f}")
+            print(f"  {i}. {row['feature']}: {row['importance']:.4f}")
+
+        # Сохраняем важность признаков
+        shap_importance.to_csv('shap_feature_importance.csv', index=False)
+        print("  ✓ shap_feature_importance.csv")
 
     except Exception as e:
-        print(f"Ошибка при SHAP анализе: {e}")
+        print(f"  ✗ Ошибка при SHAP анализе: {e}")
+else:
+    print(f"\nSHAP анализ пропущен (модель {best_model_name} не является tree-based)")
 
 # =====================================================
 # ЭТАП 4. СОХРАНЕНИЕ МОДЕЛИ
@@ -458,51 +441,100 @@ try:
 
     # Сохранение метаданных
     metadata = {
-        'feature_names': numerical_cols + categorical_cols,
+        'feature_names': numeric_cols + categorical_cols,
         'categorical_cols': categorical_cols,
-        'numerical_cols': numerical_cols,
+        'numerical_cols': numeric_cols,
         'best_model_name': best_model_name,
         'auc_roc_score': float(results_df.loc[best_idx, 'AUC-ROC'])
     }
     joblib.dump(metadata, 'model_metadata.pkl')
     print("✓ Метаданные сохранены: model_metadata.pkl")
 
+    # Сохранение препроцессора отдельно
+    joblib.dump(preprocessor, 'preprocessor.pkl')
+    print("✓ Препроцессор сохранен: preprocessor.pkl")
+
     # Создание API файла
     api_code = '''# api.py - Credit Scoring API
 import joblib
 import pandas as pd
+import numpy as np
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from typing import Dict, Any
 import uvicorn
 
-print("Loading model...")
+# Загрузка модели и компонентов
+print("Loading model components...")
 model = joblib.load('credit_scoring_model.pkl')
 metadata = joblib.load('model_metadata.pkl')
-print(f"Loaded: {metadata['best_model_name']} (AUC-ROC: {metadata['auc_roc_score']:.4f})")
+preprocessor = joblib.load('preprocessor.pkl')
 
-app = FastAPI(title="Credit Scoring API", version="1.0.0")
+print(f"✓ Model loaded: {metadata['best_model_name']}")
+print(f"✓ AUC-ROC: {metadata['auc_roc_score']:.4f}")
+print(f"✓ Features: {len(metadata['feature_names'])}")
+
+app = FastAPI(
+    title="Credit Scoring API",
+    description="API для предсказания вероятности дефолта по кредиту",
+    version="1.0.0"
+)
 
 class CreditRequest(BaseModel):
-    data: Dict[str, Any]
+    """Запрос на оценку кредитного риска"""
+    data: Dict[str, Any] = Field(..., description="Признаки клиента")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "data": {
+                    "duration": 6,
+                    "amount": 1169,
+                    "age": 67,
+                    "checking_status": "A11",
+                    "credit_history": "A34"
+                }
+            }
+        }
 
 class CreditResponse(BaseModel):
-    prediction: int
-    probability_default: float
-    credit_decision: str
-    risk_level: str
+    """Ответ сервиса"""
+    prediction: int = Field(..., description="0 - одобрить, 1 - отказать")
+    probability_default: float = Field(..., description="Вероятность дефолта (0-1)")
+    credit_decision: str = Field(..., description="Решение по кредиту")
+    risk_level: str = Field(..., description="Уровень риска: Low/Medium/High")
 
 @app.get("/")
 def root():
-    return {"model": metadata['best_model_name'], "auc_roc": metadata['auc_roc_score']}
+    """Информация о сервисе"""
+    return {
+        "service": "Credit Scoring API",
+        "model": metadata['best_model_name'],
+        "auc_roc": metadata['auc_roc_score'],
+        "status": "active"
+    }
+
+@app.get("/health")
+def health_check():
+    """Проверка здоровья сервиса"""
+    return {"status": "healthy"}
 
 @app.post("/predict", response_model=CreditResponse)
 def predict(request: CreditRequest):
+    """
+    Предсказание вероятности дефолта
+
+    Принимает JSON с признаками клиента, возвращает решение по кредиту
+    """
     try:
+        # Преобразование в DataFrame
         input_df = pd.DataFrame([request.data])
+
+        # Предсказание вероятности
         proba = model.predict_proba(input_df)[0, 1]
         prediction = 1 if proba >= 0.5 else 0
 
+        # Определение уровня риска
         if proba < 0.3:
             risk_level = "Low"
         elif proba < 0.6:
@@ -516,25 +548,77 @@ def predict(request: CreditRequest):
             credit_decision="Rejected" if prediction == 1 else "Approved",
             risk_level=risk_level
         )
+
+    except KeyError as e:
+        raise HTTPException(status_code=400, detail=f"Missing feature: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
 '''
 
     with open('api.py', 'w', encoding='utf-8') as f:
         f.write(api_code)
     print("✓ API файл создан: api.py")
 
+    # Создание тестового запроса
+    test_request = {
+        "data": {
+            "duration": 6,
+            "amount": 1169,
+            "age": 67
+        }
+    }
+
+    # Добавляем примеры категориальных признаков
+    if len(categorical_cols) > 0:
+        test_request["data"][categorical_cols[0]] = "A11"
+
+    with open('test_request.json', 'w', encoding='utf-8') as f:
+        json.dump(test_request, f, indent=2, ensure_ascii=False)
+    print("✓ Тестовый запрос сохранен: test_request.json")
+
 except Exception as e:
-    print(f"Ошибка при сохранении: {e}")
+    print(f"✗ Ошибка при сохранении: {e}")
+    import traceback
+
+    traceback.print_exc()
 
 print("\n" + "=" * 60)
-print("РАБОТА УСПЕШНО ЗАВЕРШЕНА!")
+print("✅ РАБОТА УСПЕШНО ЗАВЕРШЕНА!")
 print("=" * 60)
-print("\nИНСТРУКЦИЯ ПО ЗАПУСКУ API:")
-print("1. pip install fastapi uvicorn")
-print("2. python api.py")
-print("3. Открыть http://127.0.0.1:8000/docs")
+
+print("\n📊 РЕЗУЛЬТАТЫ:")
+print("-" * 60)
+print(f"Лучшая модель: {best_model_name}")
+print(f"AUC-ROC: {results_df.loc[best_idx, 'AUC-ROC']:.4f}")
+print(f"\nСохраненные файлы:")
+print("  • model_comparison.csv - таблица сравнения моделей")
+print("  • model_comparison.png - график сравнения")
+print("  • target_distribution.png - распределение целевой переменной")
+print("  • correlation_matrix.png - корреляционная матрица")
+print("  • credit_scoring_model.pkl - модель")
+print("  • preprocessor.pkl - препроцессор")
+print("  • model_metadata.pkl - метаданные")
+print("  • api.py - API сервис")
+print("  • test_request.json - пример запроса")
+
+if best_model_name in ['RandomForest', 'LGBM', 'CatBoost']:
+    print("  • shap_importance.png - важность признаков (SHAP)")
+    print("  • shap_feature_importance.csv - таблица важности признаков")
+
+print("\n🚀 ИНСТРУКЦИЯ ПО ЗАПУСКУ API:")
+print("-" * 60)
+print("1. Установите дополнительные библиотеки:")
+print("   pip install fastapi uvicorn")
+print("\n2. Запустите сервис:")
+print("   python api.py")
+print("   или")
+print("   uvicorn api:app --reload --port 8000")
+print("\n3. Откройте документацию API:")
+print("   http://127.0.0.1:8000/docs")
+print("\n4. Пример запроса через curl:")
+test_json_str = json.dumps(test_request, ensure_ascii=False)
+print(f'   curl -X POST "http://127.0.0.1:8000/predict" -H "Content-Type: application/json" -d \'{test_json_str}\'')
 print("=" * 60)
