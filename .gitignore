@@ -1,1 +1,7 @@
 /.idea/*
+/catboost_info/*
+/catboost_info/catboost_training.json
+/catboost_info/learn_error.tsv
+/catboost_info/time_left.tsv
+/preprocessor.pkl
+*.pkl

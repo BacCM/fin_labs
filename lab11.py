@@ -1,12 +1,9 @@
 # =====================================================
-# ЛАБОРАТОРНАЯ РАБОТА №11 - ИСПРАВЛЕННАЯ ВЕРСИЯ
+# ЛАБОРАТОРНАЯ РАБОТА №11 - С ОТОБРАЖЕНИЕМ ГРАФИКОВ
 # =====================================================
 
 import pandas as pd
 import numpy as np
-import matplotlib
-
-matplotlib.use('Agg')  # Используем бэкенд без GUI
 import matplotlib.pyplot as plt
 import seaborn as sns
 import joblib
@@ -28,10 +25,12 @@ from catboost import CatBoostClassifier
 
 warnings.filterwarnings('ignore')
 
-# Настройка графиков
+# Настройка графиков для интерактивного отображения
+plt.ion()  # Включаем интерактивный режим
 sns.set_style('whitegrid')
 plt.rcParams['figure.figsize'] = (10, 6)
 plt.rcParams['font.size'] = 10
+plt.rcParams['figure.dpi'] = 100
 
 # =====================================================
 # ЭТАП 1. ПОДГОТОВКА ДАННЫХ И EDA
@@ -133,10 +132,8 @@ print(df.head())
 print(f"\nЧисловые признаки ({len(numeric_cols)}): {numeric_cols}")
 print(f"Категориальные признаки ({len(categorical_cols)}): {categorical_cols[:5]}...")
 
-# Визуализация (сохраняем в файлы)
-print("\nСохранение графиков...")
-
-# Распределение целевой переменной
+# 1. Визуализация распределения целевой переменной
+print("\n→ Отображение графика: Распределение целевой переменной")
 plt.figure(figsize=(8, 5))
 class_counts = df['class'].value_counts()
 class_labels = ['Хороший (0)', 'Плохой (1)']
@@ -156,9 +153,10 @@ for bar, count in zip(bars, class_counts.values):
              ha='center', va='bottom', fontweight='bold')
 
 plt.tight_layout()
+plt.show(block=False)  # Показываем без блокировки
 plt.savefig('target_distribution.png', dpi=100, bbox_inches='tight')
-plt.close()
-print("  ✓ target_distribution.png")
+print("  ✓ График сохранен: target_distribution.png")
+input("\nНажмите Enter для продолжения...")
 
 # Баланс классов
 print(f"\nБаланс классов:")
@@ -167,8 +165,9 @@ for i, (class_value, count) in enumerate(class_counts.items()):
     class_name = "Хорошие (0)" if i == 0 else "Плохие (1)"
     print(f"  {class_name}: {percentage:.2f}% ({count} клиентов)")
 
-# Корреляционная матрица
+# 2. Корреляционная матрица
 if len(numeric_cols) > 1:
+    print("\n→ Отображение графика: Корреляционная матрица")
     plt.figure(figsize=(12, 8))
     corr_matrix = df[numeric_cols].corr()
     mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
@@ -176,9 +175,10 @@ if len(numeric_cols) > 1:
                 linewidths=0.5, square=True, mask=mask, cbar_kws={"shrink": 0.8})
     plt.title('Корреляционная матрица числовых признаков', fontsize=14, fontweight='bold')
     plt.tight_layout()
+    plt.show(block=False)
     plt.savefig('correlation_matrix.png', dpi=100, bbox_inches='tight')
-    plt.close()
-    print("  ✓ correlation_matrix.png")
+    print("  ✓ График сохранен: correlation_matrix.png")
+    input("\nНажмите Enter для продолжения...")
 
 # =====================================================
 # ЭТАП 2. ПОСТРОЕНИЕ МОДЕЛЕЙ
@@ -304,9 +304,6 @@ for name, config in models.items():
 
     except Exception as e:
         print(f"  ✗ Ошибка при обучении {name}: {e}")
-        import traceback
-
-        traceback.print_exc()
         continue
 
 # Проверка результатов
@@ -326,7 +323,8 @@ print("=" * 70)
 results_df.to_csv('model_comparison.csv', index=False)
 print("\n✓ Таблица сохранена: model_comparison.csv")
 
-# Визуализация сравнения
+# 3. Визуализация сравнения моделей
+print("\n→ Отображение графика: Сравнение моделей")
 fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
 # AUC-ROC
@@ -352,9 +350,10 @@ axes[1].legend(loc='lower right')
 axes[1].grid(axis='y', alpha=0.3)
 
 plt.tight_layout()
+plt.show(block=False)
 plt.savefig('model_comparison.png', dpi=100, bbox_inches='tight')
-plt.close()
 print("✓ График сохранен: model_comparison.png")
+input("\nНажмите Enter для продолжения...")
 
 # =====================================================
 # ЭТАП 3. SHAP АНАЛИЗ
@@ -397,14 +396,15 @@ if best_model_name in ['RandomForest', 'LGBM', 'CatBoost']:
         else:
             shap_values_class1 = shap_values
 
-        # График важности признаков
+        # 4. График важности признаков
+        print("\n→ Отображение графика: Важность признаков (SHAP)")
         plt.figure(figsize=(10, 6))
         shap.summary_plot(shap_values_class1, X_test_df, plot_type="bar", show=False)
         plt.title(f'Важность признаков по SHAP - {best_model_name}', fontsize=14, fontweight='bold')
         plt.tight_layout()
+        plt.show(block=False)
         plt.savefig('shap_importance.png', dpi=100, bbox_inches='tight')
-        plt.close()
-        print("  ✓ shap_importance.png")
+        print("  ✓ График сохранен: shap_importance.png")
 
         # Топ-5 признаков
         shap_importance = pd.DataFrame({
@@ -420,6 +420,67 @@ if best_model_name in ['RandomForest', 'LGBM', 'CatBoost']:
         # Сохраняем важность признаков
         shap_importance.to_csv('shap_feature_importance.csv', index=False)
         print("  ✓ shap_feature_importance.csv")
+
+        # 5. Force plot для конкретного клиента
+        print("\n→ Анализ конкретного клиента")
+        y_pred_proba = best_model_obj.predict_proba(X_test)[:, 1]
+
+        # Находим клиента с отказом
+        bad_indices = np.where((y_pred_proba > 0.6) & (y_test == 1))[0]
+        if len(bad_indices) > 0:
+            client_idx = bad_indices[0]
+        else:
+            client_idx = np.argmax(y_pred_proba)
+
+        client_proba = y_pred_proba[client_idx]
+        client_true = y_test.iloc[client_idx]
+
+        print(f"\n  Выбран клиент #{client_idx}")
+        print(f"  Истинный класс: {'Плохой' if client_true == 1 else 'Хороший'}")
+        print(f"  Вероятность дефолта: {client_proba:.2%}")
+        print(f"  Решение: {'ОТКАЗАТЬ' if client_proba >= 0.5 else 'ОДОБРИТЬ'}")
+
+        # Force plot
+        client_data = X_test.iloc[[client_idx]]
+        client_processed = best_model_obj.named_steps['preprocessor'].transform(client_data)
+        client_df = pd.DataFrame(client_processed, columns=feature_names_all)
+        client_shap = explainer.shap_values(client_df)
+
+        if isinstance(client_shap, list):
+            client_shap_values = client_shap[1][0]
+        else:
+            client_shap_values = client_shap[0]
+
+        expected_val = explainer.expected_value[1] if isinstance(explainer.expected_value,
+                                                                 list) else explainer.expected_value
+
+        print("\n  → Отображение Force Plot (может открыться в новом окне)")
+        shap.initjs()
+        force_plot = shap.force_plot(expected_val, client_shap_values, client_df, matplotlib=True)
+
+        # Сохраняем force plot
+        plt.figure(figsize=(20, 4))
+        shap.force_plot(expected_val, client_shap_values, client_df, matplotlib=True, show=False)
+        plt.title(f'Force Plot - Вероятность дефолта: {client_proba:.2%}', fontsize=12, fontweight='bold')
+        plt.tight_layout()
+        plt.savefig('force_plot.png', dpi=100, bbox_inches='tight')
+        plt.show(block=False)
+        print("  ✓ Force Plot сохранен: force_plot.png")
+
+        print("\n  Факторы, увеличивающие риск (топ-3):")
+        shap_client = pd.DataFrame({
+            'feature': feature_names_all,
+            'shap_value': client_shap_values
+        }).sort_values('shap_value', ascending=False)
+
+        for _, row in shap_client.head(3).iterrows():
+            print(f"    ↑ {row['feature']}: +{row['shap_value']:.4f}")
+
+        print("\n  Факторы, снижающие риск (топ-3):")
+        for _, row in shap_client.tail(3).iterrows():
+            print(f"    ↓ {row['feature']}: {row['shap_value']:.4f}")
+
+        input("\nНажмите Enter для продолжения...")
 
     except Exception as e:
         print(f"  ✗ Ошибка при SHAP анализе: {e}")
@@ -491,8 +552,7 @@ class CreditRequest(BaseModel):
                     "duration": 6,
                     "amount": 1169,
                     "age": 67,
-                    "checking_status": "A11",
-                    "credit_history": "A34"
+                    "checking_status": "A11"
                 }
             }
         }
@@ -571,7 +631,6 @@ if __name__ == "__main__":
         }
     }
 
-    # Добавляем примеры категориальных признаков
     if len(categorical_cols) > 0:
         test_request["data"][categorical_cols[0]] = "A11"
 
@@ -581,9 +640,6 @@ if __name__ == "__main__":
 
 except Exception as e:
     print(f"✗ Ошибка при сохранении: {e}")
-    import traceback
-
-    traceback.print_exc()
 
 print("\n" + "=" * 60)
 print("✅ РАБОТА УСПЕШНО ЗАВЕРШЕНА!")
@@ -593,20 +649,6 @@ print("\n📊 РЕЗУЛЬТАТЫ:")
 print("-" * 60)
 print(f"Лучшая модель: {best_model_name}")
 print(f"AUC-ROC: {results_df.loc[best_idx, 'AUC-ROC']:.4f}")
-print(f"\nСохраненные файлы:")
-print("  • model_comparison.csv - таблица сравнения моделей")
-print("  • model_comparison.png - график сравнения")
-print("  • target_distribution.png - распределение целевой переменной")
-print("  • correlation_matrix.png - корреляционная матрица")
-print("  • credit_scoring_model.pkl - модель")
-print("  • preprocessor.pkl - препроцессор")
-print("  • model_metadata.pkl - метаданные")
-print("  • api.py - API сервис")
-print("  • test_request.json - пример запроса")
-
-if best_model_name in ['RandomForest', 'LGBM', 'CatBoost']:
-    print("  • shap_importance.png - важность признаков (SHAP)")
-    print("  • shap_feature_importance.csv - таблица важности признаков")
 
 print("\n🚀 ИНСТРУКЦИЯ ПО ЗАПУСКУ API:")
 print("-" * 60)
@@ -614,11 +656,9 @@ print("1. Установите дополнительные библиотеки
 print("   pip install fastapi uvicorn")
 print("\n2. Запустите сервис:")
 print("   python api.py")
-print("   или")
-print("   uvicorn api:app --reload --port 8000")
 print("\n3. Откройте документацию API:")
 print("   http://127.0.0.1:8000/docs")
-print("\n4. Пример запроса через curl:")
-test_json_str = json.dumps(test_request, ensure_ascii=False)
-print(f'   curl -X POST "http://127.0.0.1:8000/predict" -H "Content-Type: application/json" -d \'{test_json_str}\'')
 print("=" * 60)
+
+# Держим окна открытыми
+plt.show(block=True)
