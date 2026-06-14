@@ -23,3 +23,7 @@ plt.show()
 
 sns.displot(data=df, x="Weight", kind="kde")
 plt.show()
+
+# Задание 5. Построить двумерный график рассеивания признаков вес и рост
+sns.scatterplot(data=df,x="Growth",y="Weight")
+plt.show()
