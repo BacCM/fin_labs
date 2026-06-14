@@ -9,3 +9,8 @@ sns.set_theme(style="darkgrid")
 # Задание 1. Построить гистограмму признака возраст
 sns.displot(data=df, x="Age")
 plt.show()
+
+# Задание 2. Построить гистограмму признака вес.
+
+sns.displot(data=df, x="Weight",kind ="kde")
+plt.show()
