@@ -14,3 +14,12 @@ plt.show()
 
 sns.displot(data=df, x="Weight")
 plt.show()
+
+# Задание 3. Построить линейчатую гистограмму признака ввозраст.
+sns.displot(data=df, x="Age", kind="kde")
+plt.show()
+
+# Задание 4. Построить линейчатую гистограмму признака вес.
+
+sns.displot(data=df, x="Weight", kind="kde")
+plt.show()
