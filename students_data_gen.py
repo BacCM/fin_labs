@@ -10,6 +10,8 @@ genders = ['Male', 'Female']
 courses = ['Computer Science', 'Engineering', 'Mathematics', 'Physics', 'Economics', 'Biology', 'Chemistry',
            'Psychology', 'Business', 'Art']
 faculties = ['Science', 'Engineering', 'Humanities', 'Business', 'Medicine']
+animals_f = ['Cats', 'Cats', 'Dogs', 'Hate all']
+animals_m = ['Cats', 'Dogs', 'Dogs', 'Dogs', 'Hate all']
 
 # Списки для хранения данных
 data = {
@@ -21,8 +23,9 @@ data = {
     'Shoe size': [],
     'Course': [],
     'Faculty': [],
-    'Year': []
-}
+    'Year': [],
+    'Animal': []
+ }
 
 # Генерация данных
 for i in range(1, n + 1):
@@ -46,14 +49,17 @@ for i in range(1, n + 1):
 
     # Размер обуви (EU): примерно (рост/7.5) + вариация
     if sex == 'Male':
+        animal = choice(animals_m)
         shoe_base = height / 6.8
     else:
+        animal = choice(animals_f)
         shoe_base = height / 7.2
     shoe_size = round(np.random.normal(shoe_base, 1.2))
     shoe_size = max(35, min(48, shoe_size))
 
     # Год обучения (1-4), но для старших студентов может быть 5+
     year = min(randint(1, 6), 4) if age < 24 else randint(3, 6)
+
 
     # Заполняем
     data['Student ID'].append(f"S{i:04d}")
@@ -65,6 +71,7 @@ for i in range(1, n + 1):
     data['Course'].append(choice(courses))
     data['Faculty'].append(choice(faculties))
     data['Year'].append(year)
+    data['Animal'].append(animal)
 
 # Создаем DataFrame
 df = pd.DataFrame(data)
