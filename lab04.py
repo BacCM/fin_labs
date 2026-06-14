@@ -27,3 +27,8 @@ plt.show()
 # Задание 5. Построить двумерный график рассеивания признаков вес и рост
 sns.scatterplot(data=df,x="Growth",y="Weight")
 plt.show()
+
+# Задание 6. Для лучшей интерпретируемости можно добавить категориальный признак
+
+sns.scatterplot(data=df,x="Growth",y="Weight",hue="Sex")
+plt.show()
