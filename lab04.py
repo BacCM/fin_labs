@@ -54,3 +54,8 @@ plt.show()
 # Задание 11. Поменяйте местам пол и животных, выведите на экран график.
 sns.countplot(data=df,hue="Sex",x="Animal")
 plt.show()
+
+# Задание 12. Создадим новую таблицу df_Nue, в которой оставим 4 признака
+df_nue =  pd.read_csv('students_nue.csv')
+sns.pairplot(data=df_nue)
+plt.show()
