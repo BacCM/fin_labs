@@ -32,3 +32,13 @@ plt.show()
 
 sns.scatterplot(data=df,x="Growth",y="Weight",hue="Sex")
 plt.show()
+
+# Задание 7. Возьмем в качестве категориального признака год, по факту случайны вместо монетки
+
+sns.scatterplot(data=df,x="Growth",y="Weight",hue="Year")
+plt.show()
+
+# Задание 8 Возьмите в качестве категориального признака факультет, подойдёт вместо животных Animal
+
+sns.scatterplot(data=df,x="Growth",y="Weight",hue="Faculty")
+plt.show()
