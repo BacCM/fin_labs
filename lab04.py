@@ -61,3 +61,8 @@ df_nue =  df[['Age','Growth','Weight','Shoe size']]
 # Задание 13. Построить композицию графиков с использованием функции sns.pairplot(df_Nue)
 sns.pairplot(data=df_nue)
 plt.show()
+
+# Задание 14. Раскрасим исследуемые выше количественные признаки в зависимости от категориальных признаков.
+df_NueS=df[['Age',"Growth","Weight",'Shoe size','Sex']]
+sns.pairplot(df_NueS,hue="Sex")
+plt.show()
