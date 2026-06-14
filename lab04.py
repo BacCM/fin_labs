@@ -42,3 +42,7 @@ plt.show()
 
 sns.scatterplot(data=df,x="Growth",y="Weight",hue="Faculty")
 plt.show()
+
+# Задание 9. Визализировать количество респондентов по полу
+sns.countplot(data=df,x="Sex")
+plt.show()
