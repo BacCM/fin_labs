@@ -57,5 +57,7 @@ plt.show()
 
 # Задание 12. Создадим новую таблицу df_Nue, в которой оставим 4 признака
 df_nue =  pd.read_csv('students_nue.csv')
+
+# Задание 13. Построить композицию графиков с использованием функции sns.pairplot(df_Nue)
 sns.pairplot(data=df_nue)
 plt.show()
