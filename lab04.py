@@ -12,5 +12,5 @@ plt.show()
 
 # Задание 2. Построить гистограмму признака вес.
 
-sns.displot(data=df, x="Weight",kind ="kde")
+sns.displot(data=df, x="Weight")
 plt.show()
